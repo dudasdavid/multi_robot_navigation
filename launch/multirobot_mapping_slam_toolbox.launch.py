@@ -1,34 +1,52 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import LifecycleNode
 from launch.actions import (DeclareLaunchArgument, EmitEvent, LogInfo,
                             RegisterEventHandler)
 from launch_ros.event_handlers import OnStateTransition
+from launch.conditions import IfCondition
 from launch_ros.events.lifecycle import ChangeState
 from lifecycle_msgs.msg import Transition
 from launch.events import matches_action
+from tf_transformations import quaternion_from_euler
 
 def generate_launch_description():
 
-    name_1 = "robot_1"
-    name_2 = "robot_2"
+
+    robot_1 = {'name': 'robot_1',
+               'x': -4.5,
+               'y': 4.2,
+               'yaw': 1.5708}
+    robot_1['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_1['yaw'])
+
+    robot_2 = {'name': 'robot_2',
+               'x': 4.0,
+               'y': -5.5,
+               'yaw': 2.3562}
+    robot_2['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_2['yaw'])
+
 
     pkg_multi_robot_navigation = get_package_share_directory('multi_robot_navigation')
 
-    rviz_launch_arg = DeclareLaunchArgument(
-        'rviz', default_value='true',
-        description='Open RViz'
-    )
+    # Add your own gazebo library path here
+    gazebo_models_path = "/home/david/gazebo_models"
+    os.environ["GZ_SIM_RESOURCE_PATH"] += os.pathsep + gazebo_models_path
+    gazebo_models_path, ignore_last_dir = os.path.split(pkg_multi_robot_navigation)
+    os.environ["GZ_SIM_RESOURCE_PATH"] += os.pathsep + gazebo_models_path
 
     rviz_config_arg = DeclareLaunchArgument(
-        'rviz_config', default_value='rviz.rviz',
+        'rviz_config', default_value='mapping.rviz',
         description='RViz config file'
+    )
+
+    world_arg = DeclareLaunchArgument(
+        'world', default_value='home.sdf',
+        description='Name of the Gazebo world file to load'
     )
 
     sim_time_arg = DeclareLaunchArgument(
@@ -36,24 +54,48 @@ def generate_launch_description():
         description='Flag to enable use_sim_time'
     )
 
-    declare_slam_params_file_1 = DeclareLaunchArgument(
-        'slam_params_file_1',
-        default_value=os.path.join(get_package_share_directory("multi_robot_navigation"),
-                                   'config', 'slam_toolbox_mapping_1.yaml'),
-        description='Full path to the ROS2 parameters file to use for the slam_toolbox node')
+    static_tf_arg = DeclareLaunchArgument(
+        'static_map_tf', default_value='true',
+        description='Apply static transform between world and odom frame'
+    )
 
-    declare_slam_params_file_2 = DeclareLaunchArgument(
-        'slam_params_file_2',
-        default_value=os.path.join(get_package_share_directory("multi_robot_navigation"),
-                                   'config', 'slam_toolbox_mapping_2.yaml'),
-        description='Full path to the ROS2 parameters file to use for the slam_toolbox node')
+    slam_params_file_1 = os.path.join(get_package_share_directory("multi_robot_navigation"), 'config', 'slam_toolbox_mapping_1.yaml')
+    slam_params_file_2 = os.path.join(get_package_share_directory("multi_robot_navigation"), 'config', 'slam_toolbox_mapping_2.yaml')
 
+    world_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_multi_robot_navigation, 'launch', 'world.launch.py'),
+        ),
+        launch_arguments={
+        'world': LaunchConfiguration('world'),
+        'rviz': 'false',
+        }.items()
+    )
 
-    # Generate path to config file
-    interactive_marker_config_file_path = os.path.join(
-        get_package_share_directory('interactive_marker_twist_server'),
-        'config',
-        'linear.yaml'
+    robot_1_spawn_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_multi_robot_navigation, 'launch', 'spawn_robot.launch.py'),
+        ),
+        launch_arguments={
+        'name': robot_1['name'],
+        'x': str(robot_1['x']),
+        'y': str(robot_1['y']),
+        'yaw': str(robot_1['yaw']),
+        'static_tf': 'false',
+        }.items()
+    )
+
+    robot_2_spawn_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_multi_robot_navigation, 'launch', 'spawn_robot.launch.py'),
+        ),
+        launch_arguments={
+        'name': robot_2['name'],
+        'x': str(robot_2['x']),
+        'y': str(robot_2['y']),
+        'yaw': str(robot_2['yaw']),
+        'static_tf': 'false',
+        }.items()
     )
 
     # Launch rviz
@@ -61,7 +103,6 @@ def generate_launch_description():
         package='rviz2',
         executable='rviz2',
         arguments=['-d', PathJoinSubstitution([pkg_multi_robot_navigation, 'rviz', LaunchConfiguration('rviz_config')])],
-        condition=IfCondition(LaunchConfiguration('rviz')),
         parameters=[
             {'use_sim_time': LaunchConfiguration('use_sim_time')},
         ]
@@ -70,37 +111,40 @@ def generate_launch_description():
     static_world_transform_1 = Node( 
             package='tf2_ros',
             executable='static_transform_publisher',
-            name='static_transform_1',
-            namespace=name_1,
-            arguments=['0.0', '0.0', '0.0', '0.0', '0.0', '0.0', '1.0', 'world', 'robot_1/map'],
+            name='static_transform',
+            namespace=robot_1['name'],
+            condition=IfCondition(LaunchConfiguration('static_map_tf')),
+            arguments=[str(robot_1['x']),
+                       str(robot_1['y']),
+                       '0.0',
+                       str(robot_1['quaternion'][0]),
+                       str(robot_1['quaternion'][1]),
+                       str(robot_1['quaternion'][2]),
+                       str(robot_1['quaternion'][3]),
+                       'world',
+                       'robot_1/map'],
     	    parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}])
 
     static_world_transform_2 = Node( 
             package='tf2_ros',
             executable='static_transform_publisher',
-            name='static_transform_2',
-            namespace=name_2,
-            arguments=['0.5', '1.0', '0.0', '0.0', '0.0', '0.0', '1.0', 'world', 'robot_2/map'],
+            name='static_transform',
+            namespace=robot_2['name'],
+            condition=IfCondition(LaunchConfiguration('static_map_tf')),
+            arguments=[str(robot_2['x']),
+                       str(robot_2['y']),
+                       '0.0',
+                       str(robot_2['quaternion'][0]),
+                       str(robot_2['quaternion'][1]),
+                       str(robot_2['quaternion'][2]),
+                       str(robot_2['quaternion'][3]),
+                       'world',
+                       'robot_2/map'],
     	    parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}])
-
-    interactive_marker_twist_server_node_1 = Node(
-            package='interactive_marker_twist_server',
-            executable='marker_server',
-            namespace=name_1,
-            parameters=[{'link_name': 'robot_1/base_link'}],
-            remappings=[('/cmd_vel', '/robot_1/cmd_vel')])
-
-    interactive_marker_twist_server_node_2 = Node(
-            package='interactive_marker_twist_server',
-            executable='marker_server',
-            namespace=name_2,
-            parameters=[{'link_name': 'robot_2/base_link'}],
-            remappings=[('/cmd_vel', '/robot_2/cmd_vel')])
-
 
     start_async_slam_toolbox_node_1 = LifecycleNode(
         parameters=[
-          LaunchConfiguration('slam_params_file_1'),
+          slam_params_file_1,
           {
             'use_lifecycle_manager': False,
             'use_sim_time': LaunchConfiguration('use_sim_time')
@@ -110,7 +154,7 @@ def generate_launch_description():
         executable='async_slam_toolbox_node',
         name='slam_toolbox',
         output='screen',
-        namespace=name_1,
+        namespace=robot_1['name'],
         remappings=[
             ("/map", "map"),
             ("/map_metadata", "map_metadata"),
@@ -143,7 +187,7 @@ def generate_launch_description():
 
     start_async_slam_toolbox_node_2 = LifecycleNode(
         parameters=[
-          LaunchConfiguration('slam_params_file_2'),
+          slam_params_file_2,
           {
             'use_lifecycle_manager': False,
             'use_sim_time': LaunchConfiguration('use_sim_time')
@@ -153,7 +197,7 @@ def generate_launch_description():
         executable='async_slam_toolbox_node',
         name='slam_toolbox',
         output='screen',
-        namespace=name_2,
+        namespace=robot_2['name'],
         remappings=[
             ("/map", "map"),
             ("/map_metadata", "map_metadata"),
@@ -184,19 +228,18 @@ def generate_launch_description():
         )
     )
 
-
     launchDescriptionObject = LaunchDescription()
 
-    launchDescriptionObject.add_action(rviz_launch_arg)
     launchDescriptionObject.add_action(rviz_config_arg)
     launchDescriptionObject.add_action(sim_time_arg)
-    launchDescriptionObject.add_action(declare_slam_params_file_1)
-    launchDescriptionObject.add_action(declare_slam_params_file_2)
+    launchDescriptionObject.add_action(static_tf_arg)
+    launchDescriptionObject.add_action(world_arg)
+    launchDescriptionObject.add_action(world_launch)
+    launchDescriptionObject.add_action(robot_1_spawn_launch)
+    launchDescriptionObject.add_action(robot_2_spawn_launch)
     launchDescriptionObject.add_action(rviz_node)
     launchDescriptionObject.add_action(static_world_transform_1)
     launchDescriptionObject.add_action(static_world_transform_2)
-    launchDescriptionObject.add_action(interactive_marker_twist_server_node_1)
-    launchDescriptionObject.add_action(interactive_marker_twist_server_node_2)
     launchDescriptionObject.add_action(start_async_slam_toolbox_node_1)
     launchDescriptionObject.add_action(configure_event_1)
     launchDescriptionObject.add_action(activate_event_1)
