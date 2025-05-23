@@ -76,6 +76,30 @@ def patch_and_launch_nodes(context, *args, **kwargs):
 
     return [gz_bridge_node, ekf_node]
 
+def patch_static_transform(context, *args, **kwargs):
+
+    yaw_angle = LaunchConfiguration('yaw').perform(context)
+    yaw_quaternion = quaternion_from_euler(0, 0, float(yaw_angle))
+
+    static_world_transform = Node( 
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_transform',
+            namespace=LaunchConfiguration('name'),
+            condition=IfCondition(LaunchConfiguration('static_tf')),
+            arguments=[LaunchConfiguration('x'),
+                       LaunchConfiguration('y'),
+                       '0.0',
+                       str(yaw_quaternion[0]),
+                       str(yaw_quaternion[1]),
+                       str(yaw_quaternion[2]),
+                       str(yaw_quaternion[3]),
+                       'world',
+                       PythonExpression(["'", LaunchConfiguration('name'), "/odom'"])],
+    	    parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}])
+
+    return [static_world_transform]
+
 def generate_launch_description():
 
     pkg_multi_robot_navigation = get_package_share_directory('multi_robot_navigation')
@@ -104,10 +128,8 @@ def generate_launch_description():
         description='y coordinate of spawned robot'
     )
 
-    yaw_angle = random.random() * 3.14
-    yaw_quaternion = quaternion_from_euler(0, 0, yaw_angle)
     yaw_arg = DeclareLaunchArgument(
-        'yaw', default_value=str(yaw_angle),
+        'yaw', default_value=str(random.random() * 3.14),
         description='yaw angle of spawned robot'
     )
 
@@ -201,23 +223,6 @@ def generate_launch_description():
                      'trajectory_topic': PythonExpression(["'/", LaunchConfiguration('name'), "/trajectory'"])}]
     )
 
-    static_world_transform = Node( 
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_transform',
-            namespace=LaunchConfiguration('name'),
-            condition=IfCondition(LaunchConfiguration('static_tf')),
-            arguments=[LaunchConfiguration('x'),
-                       LaunchConfiguration('y'),
-                       '0.0',
-                       str(yaw_quaternion[0]),
-                       str(yaw_quaternion[1]),
-                       str(yaw_quaternion[2]),
-                       str(yaw_quaternion[3]),
-                       'world',
-                       PythonExpression(["'", LaunchConfiguration('name'), "/odom'"])],
-    	    parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}])
-
     interactive_marker_twist_server_node = Node(
             package='interactive_marker_twist_server',
             executable='marker_server',
@@ -226,6 +231,7 @@ def generate_launch_description():
             remappings=[('/cmd_vel', PythonExpression(["'/", LaunchConfiguration('name'), "/cmd_vel'"]))])
 
     opaque_nodes = OpaqueFunction(function=patch_and_launch_nodes)
+    opaque_static_transform = OpaqueFunction(function=patch_static_transform)
 
     launchDescriptionObject = LaunchDescription()
 
@@ -240,8 +246,8 @@ def generate_launch_description():
     launchDescriptionObject.add_action(gz_image_bridge_node)
     launchDescriptionObject.add_action(relay_camera_info_node)
     launchDescriptionObject.add_action(trajectory_node)
-    launchDescriptionObject.add_action(static_world_transform)
     launchDescriptionObject.add_action(interactive_marker_twist_server_node)
     launchDescriptionObject.add_action(opaque_nodes)
+    launchDescriptionObject.add_action(opaque_static_transform)
 
     return launchDescriptionObject
