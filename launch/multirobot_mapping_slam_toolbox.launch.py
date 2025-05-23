@@ -9,7 +9,7 @@ from launch_ros.actions import LifecycleNode
 from launch.actions import (DeclareLaunchArgument, EmitEvent, LogInfo,
                             RegisterEventHandler)
 from launch_ros.event_handlers import OnStateTransition
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.events.lifecycle import ChangeState
 from lifecycle_msgs.msg import Transition
 from launch.events import matches_action
@@ -141,6 +141,16 @@ def generate_launch_description():
                        'world',
                        'robot_2/map'],
     	    parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}])
+    
+    map_merger_node = Node(
+        package='map_merge_py',
+        executable='map_merge',
+        name='map_merge',
+        output='screen',
+        condition=UnlessCondition(LaunchConfiguration('static_map_tf')),
+        parameters=[
+            {'match_confidence_threshold': 60.0},
+        ])
 
     start_async_slam_toolbox_node_1 = LifecycleNode(
         parameters=[
@@ -240,6 +250,7 @@ def generate_launch_description():
     launchDescriptionObject.add_action(rviz_node)
     launchDescriptionObject.add_action(static_world_transform_1)
     launchDescriptionObject.add_action(static_world_transform_2)
+    launchDescriptionObject.add_action(map_merger_node)
     launchDescriptionObject.add_action(start_async_slam_toolbox_node_1)
     launchDescriptionObject.add_action(configure_event_1)
     launchDescriptionObject.add_action(activate_event_1)
