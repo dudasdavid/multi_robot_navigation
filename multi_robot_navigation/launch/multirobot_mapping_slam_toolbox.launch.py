@@ -143,7 +143,7 @@ def generate_launch_description():
     	    parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}])
     
     map_merger_node = Node(
-        package='map_merge_py',
+        package='multi_robot_map_merge',
         executable='map_merge',
         name='map_merge',
         output='screen',
