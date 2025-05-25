@@ -35,6 +35,20 @@ class MultiRobotExplorer(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        self.current_targets = {
+            'robot_1': None,
+            'robot_2': None
+        }
+        self.target_start_times = {
+            'robot_1': None,
+            'robot_2': None
+        }
+
+        self.blacklists = {
+            'robot_1': set(),
+            'robot_2': set()
+        }
+
     def get_closest_frontier(self, frontiers, map_msg, robot_frame):
         resolution = map_msg.info.resolution
         origin = map_msg.info.origin.position
@@ -54,10 +68,77 @@ class MultiRobotExplorer(Node):
             self.get_logger().warn(f"TF transform failed for {robot_frame}: {e}")
             return None
 
+    def transform_blacklists_to_world(self, map_msg):
+        resolution = map_msg.info.resolution
+        origin = map_msg.info.origin.position
+        world_points = []
+
+        for robot, blacklist in self.blacklists.items():
+            frame = f"{robot}/map"
+            try:
+                transform = self.tf_buffer.lookup_transform(
+                    'world', frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5))
+                for y, x in blacklist:
+                    local_x = origin.x + (x + 0.5) * resolution
+                    local_y = origin.y + (y + 0.5) * resolution
+                    pose = PoseStamped()
+                    pose.header.frame_id = frame
+                    pose.pose.position.x = local_x
+                    pose.pose.position.y = local_y
+                    pose.pose.position.z = 0.1
+                    pose.pose.orientation.w = 1.0
+                    try:
+                        transformed = do_transform_pose(pose.pose, transform)
+                        world_points.append(Point(
+                            x=transformed.position.x,
+                            y=transformed.position.y,
+                            z=transformed.position.z))
+                    except Exception as e:
+                        self.get_logger().warn(f"Transform failed for blacklist {robot} cell {(y,x)}: {e}")
+            except Exception as e:
+                self.get_logger().warn(f"TF lookup failed for {frame} to world: {e}")
+
+        return world_points
+
+    def publish_blacklist_markers(self, world_points):
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.header.frame_id = "world"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "blacklisted_frontiers"
+        marker.id = 0
+        marker.type = Marker.SPHERE_LIST
+        marker.action = Marker.ADD
+        marker.scale.x = 0.2
+        marker.scale.y = 0.2
+        marker.scale.z = 0.2
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+        marker.color.a = 1.0
+        marker.lifetime = Duration(sec=2)
+
+        marker.points.extend(world_points)
+        marker_array.markers.append(marker)
+        self.marker_pub.publish(marker_array)
+
     def map_callback(self, msg):
+        self.check_and_blacklist_stuck_targets(msg)
         self.global_map = msg
         frontiers = self.find_frontiers(msg)
-        self.publish_frontier_markers(frontiers, msg)
+        # filter out blacklisted frontiers in world frame
+        blacklist_points = self.transform_blacklists_to_world(msg)
+        self.publish_blacklist_markers(blacklist_points)
+
+        filtered_frontiers = []
+        for cell in frontiers:
+            py = msg.info.origin.position.y + (cell[0] + 0.5) * msg.info.resolution
+            px = msg.info.origin.position.x + (cell[1] + 0.5) * msg.info.resolution
+            if all(np.hypot(px - p.x, py - p.y) > 0.3 for p in blacklist_points):
+                filtered_frontiers.append(cell)
+
+        self.publish_frontier_markers(filtered_frontiers, msg)
+        frontiers = filtered_frontiers
 
         for robot, frame in self.robot_frames.items():
             closest = self.get_closest_frontier(frontiers, msg, frame)
@@ -126,6 +207,40 @@ class MultiRobotExplorer(Node):
     def clock_callback(self, msg):
         self.latest_clock = msg.clock
 
+    def check_and_blacklist_stuck_targets(self, map_msg):
+        now = self.get_clock().now().nanoseconds / 1e9
+        resolution = map_msg.info.resolution
+        origin = map_msg.info.origin.position
+
+        for robot, target in self.current_targets.items():
+            if not target:
+                continue
+            start_time = self.target_start_times[robot]
+            if not start_time or now - start_time < 10.0:
+                self.get_logger().info(f"{robot} is not stuck: {now - start_time} seconds since last target")
+                continue
+
+            try:
+                self.get_logger().info(f"{robot} is stuck for {now - start_time} seconds, checking reachability")
+                transform = self.tf_buffer.lookup_transform(
+                    'world', f'{robot}/base_link', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5)
+                )
+                rx = transform.transform.translation.x
+                ry = transform.transform.translation.y
+
+                y, x = target
+                tx = origin.x + (x + 0.5) * resolution
+                ty = origin.y + (y + 0.5) * resolution
+
+                if np.hypot(tx - rx, ty - ry) < 1.0:
+                    self.get_logger().warn(f"Blacklisting unreachable frontier for {robot} at ({y}, {x})")
+                    self.blacklists[robot].add((y, x))
+                    self.current_targets[robot] = None
+                    self.target_start_times[robot] = None
+
+            except Exception as e:
+                self.get_logger().warn(f"TF transform failed for stuck check {robot}: {e}")
+
     def publish_goal_pose(self, cell, map_msg, robot_name):
         pub = self.goal_pubs[robot_name]
         pose = PoseStamped()
@@ -141,6 +256,8 @@ class MultiRobotExplorer(Node):
         pose.pose.orientation.w = 1.0
 
         pub.publish(pose)
+        self.current_targets[robot_name] = cell
+        self.target_start_times[robot_name] = self.get_clock().now().nanoseconds / 1e9
         self.get_logger().info(f"Sent goal for {robot_name} to ({pose.pose.position.x:.2f}, {pose.pose.position.y:.2f})")
 
     def publish_frontier_markers(self, frontiers, map_msg):
