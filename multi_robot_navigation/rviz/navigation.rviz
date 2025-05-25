@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /MarkerArray1
         - /Robot 11
         - /Robot 11/Map1/Position1
         - /Robot 21
@@ -79,13 +80,15 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        frontiers: true
+        global_frontiers: true
+        robot_1_goal: true
+        robot_2_goal: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /frontier_markers
+        Value: /global_frontiers
       Value: true
     - Class: rviz_common/Group
       Displays:
@@ -844,25 +847,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 24.966949462890625
+      Distance: 17.89630889892578
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 5.367829322814941
-        Y: 11.056445121765137
-        Z: 1.5861246585845947
+        X: 5.67508602142334
+        Y: 6.880053520202637
+        Z: 1.7851494550704956
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.1047961711883545
+      Pitch: 1.014796257019043
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.1203932762145996
+      Yaw: 3.1603951454162598
     Saved: ~
 Window Geometry:
   Camera:

@@ -19,25 +19,28 @@ def generate_launch_description():
 
 
     robot_1 = {'name': 'robot_1',
-               'x': -4.5,
-               'y': 4.2,
+               'x': -3.0,
+               'y': -14.0,
                'yaw': 1.5708}
     robot_1['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_1['yaw'])
 
     robot_2 = {'name': 'robot_2',
-               'x': 4.0,
-               'y': -5.5,
+               'x': 5.5,
+               'y': 8.5,
                'yaw': 2.3562}
     robot_2['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_2['yaw'])
 
 
     pkg_multi_robot_navigation = get_package_share_directory('multi_robot_navigation')
+    #pkg_aws_robomaker_world = get_package_share_directory('aws_robomaker_small_house_world')
 
     # Add your own gazebo library path here
     gazebo_models_path = "/home/david/gazebo_models"
     os.environ["GZ_SIM_RESOURCE_PATH"] += os.pathsep + gazebo_models_path
     gazebo_models_path, ignore_last_dir = os.path.split(pkg_multi_robot_navigation)
     os.environ["GZ_SIM_RESOURCE_PATH"] += os.pathsep + gazebo_models_path
+    #gazebo_models_path, ignore_last_dir = os.path.split(pkg_aws_robomaker_world)
+    #os.environ["GZ_SIM_RESOURCE_PATH"] += os.pathsep + gazebo_models_path
 
     rviz_config_arg = DeclareLaunchArgument(
         'rviz_config', default_value='navigation.rviz',
@@ -45,7 +48,7 @@ def generate_launch_description():
     )
 
     world_arg = DeclareLaunchArgument(
-        'world', default_value='home.sdf',
+        'world', default_value='maze.sdf',
         description='Name of the Gazebo world file to load'
     )
 
@@ -167,7 +170,7 @@ def generate_launch_description():
         output='screen',
         condition=UnlessCondition(LaunchConfiguration('static_map_tf')),
         parameters=[
-            {'match_confidence_threshold': 65.0},
+            {'match_confidence_threshold': 150.0},
         ])
 
     start_async_slam_toolbox_node_1 = LifecycleNode(
