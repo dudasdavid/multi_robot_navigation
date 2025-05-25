@@ -4,13 +4,16 @@ from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseStamped, Point
 from builtin_interfaces.msg import Duration
+from tf2_geometry_msgs.tf2_geometry_msgs import do_transform_pose
+from tf2_ros import Buffer, TransformListener
+
 import numpy as np
 
 class MultiRobotExplorer(Node):
     def __init__(self):
         super().__init__('multi_robot_explorer')
 
-        self.declare_parameter('min_unknown_cells', 15)
+        self.declare_parameter('min_unknown_cells', 10)
         self.min_unknown_cells = self.get_parameter('min_unknown_cells').get_parameter_value().integer_value
 
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
@@ -31,7 +34,7 @@ class MultiRobotExplorer(Node):
             self.create_subscription(Clock, '/clock', self.clock_callback, 10)
 
         self.global_map = None
-        from tf2_ros import Buffer, TransformListener
+        
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
@@ -54,7 +57,7 @@ class MultiRobotExplorer(Node):
         origin = map_msg.info.origin.position
         try:
             transform = self.tf_buffer.lookup_transform(
-                map_msg.header.frame_id, robot_frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5)
+                map_msg.header.frame_id, robot_frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1)
             )
             rx = transform.transform.translation.x
             ry = transform.transform.translation.y
@@ -77,7 +80,7 @@ class MultiRobotExplorer(Node):
             frame = f"{robot}/map"
             try:
                 transform = self.tf_buffer.lookup_transform(
-                    'world', frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5))
+                    'world', frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
                 for y, x in blacklist:
                     local_x = origin.x + (x + 0.5) * resolution
                     local_y = origin.y + (y + 0.5) * resolution
@@ -134,11 +137,13 @@ class MultiRobotExplorer(Node):
         for cell in frontiers:
             py = msg.info.origin.position.y + (cell[0] + 0.5) * msg.info.resolution
             px = msg.info.origin.position.x + (cell[1] + 0.5) * msg.info.resolution
-            if all(np.hypot(px - p.x, py - p.y) > 0.3 for p in blacklist_points):
+            if all(np.hypot(px - p.x, py - p.y) > 0.8 for p in blacklist_points):
                 filtered_frontiers.append(cell)
 
         self.publish_frontier_markers(filtered_frontiers, msg)
         frontiers = filtered_frontiers
+
+        self.get_logger().info(f"Found {len(frontiers)} frontiers")
 
         for robot, frame in self.robot_frames.items():
             closest = self.get_closest_frontier(frontiers, msg, frame)
@@ -217,13 +222,13 @@ class MultiRobotExplorer(Node):
                 continue
             start_time = self.target_start_times[robot]
             if not start_time or now - start_time < 10.0:
-                self.get_logger().info(f"{robot} is not stuck: {now - start_time} seconds since last target")
+                #self.get_logger().info(f"{robot} is not stuck: {now - start_time} seconds since last target")
                 continue
 
             try:
                 self.get_logger().info(f"{robot} is stuck for {now - start_time} seconds, checking reachability")
                 transform = self.tf_buffer.lookup_transform(
-                    'world', f'{robot}/base_link', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5)
+                    'world', f'{robot}/base_link', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1)
                 )
                 rx = transform.transform.translation.x
                 ry = transform.transform.translation.y
@@ -234,7 +239,26 @@ class MultiRobotExplorer(Node):
 
                 if np.hypot(tx - rx, ty - ry) < 1.0:
                     self.get_logger().warn(f"Blacklisting unreachable frontier for {robot} at ({y}, {x})")
-                    self.blacklists[robot].add((y, x))
+
+                    try:
+                        transform_to_local = self.tf_buffer.lookup_transform(
+                            f'{robot}/map', 'world', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1)
+                        )
+                        pose_world = PoseStamped()
+                        pose_world.header.frame_id = 'world'
+                        pose_world.pose.position.x = tx
+                        pose_world.pose.position.y = ty
+                        pose_world.pose.position.z = 0.0
+                        pose_world.pose.orientation.w = 1.0
+
+                        transformed_pose = do_transform_pose(pose_world.pose, transform_to_local)
+
+                        lx = int((transformed_pose.position.x - origin.x) / resolution)
+                        ly = int((transformed_pose.position.y - origin.y) / resolution)
+
+                        self.blacklists[robot].add((ly, lx))
+                    except Exception as e:
+                        self.get_logger().warn(f"Failed to transform stuck frontier to {robot}/map: {e}")
                     self.current_targets[robot] = None
                     self.target_start_times[robot] = None
 
@@ -256,8 +280,9 @@ class MultiRobotExplorer(Node):
         pose.pose.orientation.w = 1.0
 
         pub.publish(pose)
-        self.current_targets[robot_name] = cell
-        self.target_start_times[robot_name] = self.get_clock().now().nanoseconds / 1e9
+        if self.current_targets[robot_name] != cell:
+            self.current_targets[robot_name] = cell
+            self.target_start_times[robot_name] = self.get_clock().now().nanoseconds / 1e9
         self.get_logger().info(f"Sent goal for {robot_name} to ({pose.pose.position.x:.2f}, {pose.pose.position.y:.2f})")
 
     def publish_frontier_markers(self, frontiers, map_msg):
