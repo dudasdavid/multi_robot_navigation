@@ -5,6 +5,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseStamped, Point
 from builtin_interfaces.msg import Duration
 import numpy as np
+from tf2_ros import Buffer, TransformListener
 
 class MultiRobotExplorer(Node):
     def __init__(self):
@@ -15,13 +16,43 @@ class MultiRobotExplorer(Node):
 
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
         self.marker_pub = self.create_publisher(MarkerArray, '/global_frontiers', 10)
+        self.robot_frames = {
+            'robot_1': 'robot_1/base_link',
+            'robot_2': 'robot_2/base_link'
+        }
 
         self.global_map = None
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+    def get_closest_frontier(self, frontiers, map_msg, robot_frame):
+        resolution = map_msg.info.resolution
+        origin = map_msg.info.origin.position
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                map_msg.header.frame_id, robot_frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.5)
+            )
+            rx = transform.transform.translation.x
+            ry = transform.transform.translation.y
+            def frontier_distance(f):
+                y, x = f
+                fx = origin.x + (x + 0.5) * resolution
+                fy = origin.y + (y + 0.5) * resolution
+                return np.hypot(fx - rx, fy - ry)
+            return min(frontiers, key=frontier_distance)
+        except Exception as e:
+            self.get_logger().warn(f"TF transform failed for {robot_frame}: {e}")
+            return None
 
     def map_callback(self, msg):
         self.global_map = msg
         frontiers = self.find_frontiers(msg)
         self.publish_frontier_markers(frontiers, msg)
+
+        for robot, frame in self.robot_frames.items():
+            closest = self.get_closest_frontier(frontiers, msg, frame)
+            if closest:
+                self.publish_selected_frontier(closest, msg, robot)
 
     def find_frontiers(self, map_msg):
         height = map_msg.info.height
@@ -44,6 +75,37 @@ class MultiRobotExplorer(Node):
                 frontiers.append((y, x))
 
         return frontiers
+
+    def publish_selected_frontier(self, cell, map_msg, robot_name):
+        marker_array = MarkerArray()
+        marker = Marker()
+        marker.header.frame_id = "world"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = f"{robot_name}_goal"
+        marker.id = 0
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.scale.x = 0.4
+        marker.scale.y = 0.4
+        marker.scale.z = 0.4
+        marker.color.r = 0.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+        marker.color.a = 1.0
+        marker.lifetime = Duration(sec=2)
+
+        resolution = map_msg.info.resolution
+        origin = map_msg.info.origin.position
+        y, x = cell
+        px = origin.x + (x + 0.5) * resolution
+        py = origin.y + (y + 0.5) * resolution
+        marker.pose.position.x = px
+        marker.pose.position.y = py
+        marker.pose.position.z = 0.1
+        marker.pose.orientation.w = 1.0
+
+        marker_array.markers.append(marker)
+        self.marker_pub.publish(marker_array)
 
     def publish_frontier_markers(self, frontiers, map_msg):
         marker_array = MarkerArray()
