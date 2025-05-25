@@ -167,7 +167,7 @@ def generate_launch_description():
         output='screen',
         condition=UnlessCondition(LaunchConfiguration('static_map_tf')),
         parameters=[
-            {'match_confidence_threshold': 60.0},
+            {'match_confidence_threshold': 65.0},
         ])
 
     start_async_slam_toolbox_node_1 = LifecycleNode(

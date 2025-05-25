@@ -75,6 +75,18 @@ Visualization Manager:
         Value: /map_updates
       Use Timestamp: false
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        frontiers: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /frontier_markers
+      Value: true
     - Class: rviz_common/Group
       Displays:
         - Alpha: 1
@@ -218,6 +230,7 @@ Visualization Manager:
           Visibility:
             Grid: true
             Map: true
+            MarkerArray: true
             Robot 1:
               Imu: true
               InteractiveMarkers: true
@@ -229,15 +242,7 @@ Visualization Manager:
               RobotModel: true
               Value: true
             Robot 2:
-              Camera: true
-              Imu: true
-              InteractiveMarkers: true
-              LaserScan: true
-              Map: true
-              Path: true
-              PointCloud2: true
-              Pose: true
-              RobotModel: true
+              "": true
               Value: true
             Value: true
           Zoom Factor: 1
@@ -359,12 +364,12 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 173
+          Max Intensity: 204.8000030517578
           Min Color: 0; 0; 0
-          Min Intensity: 1.7999999523162842
+          Min Intensity: 0
           Name: PointCloud2
           Position Transformer: XYZ
           Selectable: true
@@ -379,7 +384,7 @@ Visualization Manager:
             Value: /robot_1/cost_cloud
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Buffer Length: 1
           Class: rviz_default_plugins/Path
@@ -573,6 +578,7 @@ Visualization Manager:
           Visibility:
             Grid: true
             Map: true
+            MarkerArray: true
             Robot 1:
               Camera: true
               Imu: true
@@ -714,12 +720,12 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 214
+          Max Intensity: 215.39999389648438
           Min Color: 0; 0; 0
-          Min Intensity: 1.2000000476837158
+          Min Intensity: 1.7999999523162842
           Name: PointCloud2
           Position Transformer: XYZ
           Selectable: true
@@ -734,7 +740,7 @@ Visualization Manager:
             Value: /robot_2/cost_cloud
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Buffer Length: 1
           Class: rviz_default_plugins/Path

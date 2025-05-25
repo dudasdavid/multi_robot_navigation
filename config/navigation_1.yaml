@@ -81,7 +81,7 @@ controller_server:
       sim_time: 1.7
       linear_granularity: 0.05
       angular_granularity: 0.025
-      transform_tolerance: 0.2
+      transform_tolerance: 0.3
       xy_goal_tolerance: 0.25
       trans_stopped_velocity: 0.25
       short_circuit_trajectory_evaluation: True
@@ -273,7 +273,7 @@ planner_server:
     transform_timeout: 2.0
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
-      tolerance: 0.5
+      tolerance: 2.0
       use_astar: false
       allow_unknown: true
 
@@ -307,7 +307,7 @@ behavior_server:
     local_frame: robot_1/odom
     global_frame: world
     robot_base_frame: robot_1/base_link
-    transform_tolerance: 0.1
+    transform_tolerance: 0.3
     simulate_ahead_time: 2.0
     max_rotational_vel: 1.0
     min_rotational_vel: 0.4
@@ -345,7 +345,7 @@ collision_monitor:
     cmd_vel_in_topic: "cmd_vel_smoothed"
     cmd_vel_out_topic: "cmd_vel"
     state_topic: "collision_monitor_state"
-    transform_tolerance: 0.2
+    transform_tolerance: 0.3
     source_timeout: 1.0
     base_shift_correction: True
     stop_pub_timeout: 2.0
