@@ -19,6 +19,16 @@ class MultiRobotExplorer(Node):
             'robot_1': 'robot_1/base_link',
             'robot_2': 'robot_2/base_link'
         }
+        self.goal_pubs = {
+            'robot_1': self.create_publisher(PoseStamped, '/robot_1/goal_pose', 10),
+            'robot_2': self.create_publisher(PoseStamped, '/robot_2/goal_pose', 10)
+        }
+
+        self.use_sim_time = True
+        self.latest_clock = None
+        if self.use_sim_time:
+            from rosgraph_msgs.msg import Clock
+            self.create_subscription(Clock, '/clock', self.clock_callback, 10)
 
         self.global_map = None
         from tf2_ros import Buffer, TransformListener
@@ -53,6 +63,7 @@ class MultiRobotExplorer(Node):
             closest = self.get_closest_frontier(frontiers, msg, frame)
             if closest:
                 self.publish_selected_frontier(closest, msg, robot)
+                self.publish_goal_pose(closest, msg, robot)
 
     def find_frontiers(self, map_msg):
         height = map_msg.info.height
@@ -111,6 +122,26 @@ class MultiRobotExplorer(Node):
 
         marker_array.markers.append(marker)
         self.marker_pub.publish(marker_array)
+
+    def clock_callback(self, msg):
+        self.latest_clock = msg.clock
+
+    def publish_goal_pose(self, cell, map_msg, robot_name):
+        pub = self.goal_pubs[robot_name]
+        pose = PoseStamped()
+        pose.header.frame_id = "world"
+        pose.header.stamp = self.latest_clock if self.latest_clock else self.get_clock().now().to_msg()
+
+        resolution = map_msg.info.resolution
+        origin = map_msg.info.origin.position
+        y, x = cell
+        pose.pose.position.x = origin.x + (x + 0.5) * resolution
+        pose.pose.position.y = origin.y + (y + 0.5) * resolution
+        pose.pose.position.z = 0.0
+        pose.pose.orientation.w = 1.0
+
+        pub.publish(pose)
+        self.get_logger().info(f"Sent goal for {robot_name} to ({pose.pose.position.x:.2f}, {pose.pose.position.y:.2f})")
 
     def publish_frontier_markers(self, frontiers, map_msg):
         marker_array = MarkerArray()
