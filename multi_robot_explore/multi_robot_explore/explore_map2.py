@@ -5,7 +5,6 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseStamped, Point
 from builtin_interfaces.msg import Duration
 import numpy as np
-from tf2_ros import Buffer, TransformListener
 
 class MultiRobotExplorer(Node):
     def __init__(self):
@@ -22,6 +21,7 @@ class MultiRobotExplorer(Node):
         }
 
         self.global_map = None
+        from tf2_ros import Buffer, TransformListener
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
@@ -88,9 +88,14 @@ class MultiRobotExplorer(Node):
         marker.scale.x = 0.4
         marker.scale.y = 0.4
         marker.scale.z = 0.4
-        marker.color.r = 0.0
-        marker.color.g = 0.0
-        marker.color.b = 1.0
+        if robot_name == 'robot_2':
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+        else:
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 1.0
         marker.color.a = 1.0
         marker.lifetime = Duration(sec=2)
 
