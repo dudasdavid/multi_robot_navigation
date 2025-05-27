@@ -12,6 +12,7 @@ import math
 import threading
 import tf_transformations
 import time
+from shapely.geometry import Polygon, Point
 
 class MultiRobotMapMerger(Node):
     def __init__(self):
@@ -21,7 +22,7 @@ class MultiRobotMapMerger(Node):
         self.declare_parameter('map_publish_frequency', 1.0)
         self.declare_parameter('sim_time', True)
         self.declare_parameter('visualize', True)
-        self.declare_parameter('match_confidence_threshold', 65.0)
+        self.declare_parameter('match_confidence_threshold', 0.6)
 
         self.publish_frequency = self.get_parameter('tf_publish_frequency').get_parameter_value().double_value
         self.map_publish_frequency = self.get_parameter('map_publish_frequency').get_parameter_value().double_value
@@ -50,6 +51,9 @@ class MultiRobotMapMerger(Node):
         self.map1_info = None
         self.map2_info = None
         self.merged_map_img = None
+        self.proc1_img = None
+        self.proc2_img = None
+        self.warped = None
 
         self.create_subscription(OccupancyGrid, '/robot_1/map', self.map1_callback, 10)
         self.create_subscription(OccupancyGrid, '/robot_2/map', self.map2_callback, 10)
@@ -76,13 +80,26 @@ class MultiRobotMapMerger(Node):
         height = msg.info.height
         data = np.array(msg.data, dtype=np.int8).reshape((height, width))
         img = np.zeros((height, width), dtype=np.uint8)
-        img[data == -1] = 127
-        img[data == 0] = 255
-        img[data > 0] = 0
+        img[data == -1] = 127 # Unknown cells
+        img[data == 0] = 255  # Free cells
+        img[data > 0] = 0     # Occupied cells
         return img
 
     def preprocess_image(self, img):
-        return cv2.medianBlur(img, 3)
+        # invert early
+        img = cv2.bitwise_not(img)
+        # CLAHE to boost line contrast
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(img)
+
+        # Light blur to suppress pixel noise, preserve edges
+        blurred = cv2.GaussianBlur(enhanced, (3, 3), sigmaX=0.8)
+
+        # Inflate the walls
+        kernel = np.ones((3, 3), np.uint8)
+        inflated = cv2.dilate(blurred, kernel, iterations=1)
+
+        return inflated
 
     def check_map_overlap_orb(self, img1, img2):
         orb = cv2.ORB_create(1000)
@@ -99,7 +116,7 @@ class MultiRobotMapMerger(Node):
 
         matches = sorted(matches, key=lambda x: x.distance)
         good_matches = [m for m in matches if m.distance < 60]
-        confidence = len(good_matches)
+        confidence = 0.0  # placeholder for now
         return confidence, kp1, kp2, good_matches
 
     def map1_callback(self, msg):
@@ -153,9 +170,60 @@ class MultiRobotMapMerger(Node):
 
         img1 = self.preprocess_image(self.map1_img)
         img2 = self.preprocess_image(self.map2_img)
-        confidence, kp1, kp2, good_matches = self.check_map_overlap_orb(img1, img2)
+        _, kp1, kp2, good_matches = self.check_map_overlap_orb(img1, img2)
 
-        self.get_logger().info(f"ORB good matches count: {confidence:.0f}")
+        self.proc1_img = img1.copy()
+        self.proc2_img = img2.copy()
+
+        if good_matches is not None:
+            # Extract matching points
+            src_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+            dst_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+            
+            print(src_pts.shape, dst_pts.shape)
+
+            if src_pts.shape[0] < 1 or dst_pts.shape[0] < 1:
+                confidence = 0.0
+                self.get_logger().info("Not enough points for transformation.")
+
+            else:
+                # Estimate affine transform
+                M, inliers = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.RANSAC)
+                if M is None or inliers is None:
+                    confidence = 0.0
+                    self.get_logger().info("Transform estimation failed.")
+                
+                else:
+                    # Warp img2 corners into img1 frame to get estimated overlap polygon
+                    h2, w2 = img2.shape[:2]
+                    corners2 = np.array([[0, 0], [w2, 0], [w2, h2], [0, h2]], dtype=np.float32).reshape(-1, 1, 2)
+                    warped_corners = cv2.transform(corners2, M)  # 4x1x2
+                    polygon = Polygon(warped_corners.reshape(-1, 2))
+                    
+                    # Count how many inlier points in kp1 lie inside the polygon
+                    overlap_inlier_count = 0
+                    for i, m in enumerate(good_matches):
+                        if inliers[i]:
+                            pt = kp1[m.queryIdx].pt
+                            if polygon.contains(Point(pt)):
+                                overlap_inlier_count += 1
+
+                    # Count how many total keypoints from img1 fall in the polygon
+                    kp1_pts = np.array([kp.pt for kp in kp1])
+                    overlap_kp_count = sum(polygon.contains(Point(p)) for p in kp1_pts)
+
+                    # Compute overlap-normalized confidence
+                    if overlap_kp_count > 0:
+                        confidence = overlap_inlier_count / overlap_kp_count
+                    else:
+                        confidence = 0.0
+
+                    self.get_logger().info(f"Confidence: {confidence:.2f}, Inliers: {overlap_inlier_count}, Overlap keypoints: {overlap_kp_count}")
+            
+        else:
+            confidence = 0.0
+            self.get_logger().info("0 good matches found, confidence set to 0.0")
+
         if confidence < self.confidence_threshold:
             self.get_logger().info("Using fallback layout (maps not aligned)")
         else:
@@ -177,16 +245,15 @@ class MultiRobotMapMerger(Node):
             self.robot2_pos = (-self.map2_info.origin.position.x, map2_offset_y * res - self.map2_info.origin.position.y)
             self.robot2_yaw = 0.0
         else:
-            src_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-            dst_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-            M, _ = cv2.estimateAffinePartial2D(src_pts, dst_pts)
-            if M is None:
-                return
+            
             warped = cv2.warpAffine(self.map2_img, M, (self.map1_img.shape[1], self.map1_img.shape[0]), borderValue=127)
+            
+            self.warped = warped.copy()
+
             canvas = np.full_like(self.map1_img, 127)
-            canvas[(self.map1_img == 0) | (warped == 0)] = 0
             canvas[(self.map1_img == 255) & (warped != 0) & (canvas != 0)] = 255
             canvas[(warped == 255) & (self.map1_img != 0) & (canvas != 0)] = 255
+            canvas[(self.map1_img < 100) | (warped < 100)] = 0
             self.robot1_pos = (-self.map1_info.origin.position.x, -self.map1_info.origin.position.y)
             # Compute correct transformed origin
             origin_px = np.array([[ -self.map2_info.origin.position.x / res,
@@ -197,6 +264,15 @@ class MultiRobotMapMerger(Node):
             # Store rotation for TF (in timer_callback)
             theta = math.atan2(M[1, 0], M[0, 0])
             self.robot2_yaw = theta
+
+            # Inflate the walls
+            #kernel = np.ones((3, 3), np.uint8)
+            kernel = np.array([
+                [0, 1, 0],
+                [1, 1, 1],
+                [0, 1, 0]
+            ], dtype=np.uint8)
+            canvas = cv2.erode(canvas, kernel, iterations=1)
 
         self.merged_map_img = canvas
 
@@ -227,6 +303,12 @@ class MultiRobotMapMerger(Node):
                 cv2.imshow('Robot 2 Map', self.map2_img)
             if self.merged_map_img is not None:
                 cv2.imshow('Merged Map', self.merged_map_img)
+            if self.proc1_img is not None:
+                cv2.imshow('Processed Robot 1 Map', self.proc1_img)
+            if self.proc2_img is not None:
+                cv2.imshow('Processed Robot 2 Map', self.proc2_img)
+            if self.warped is not None:
+                cv2.imshow('Warped Robot 2 Map', self.warped)
             if cv2.waitKey(30) & 0xFF == ord('q'):
                 rclpy.shutdown()
                 break
