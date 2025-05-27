@@ -246,22 +246,60 @@ class MultiRobotMapMerger(Node):
             self.robot2_yaw = 0.0
         else:
             
-            warped = cv2.warpAffine(self.map2_img, M, (self.map1_img.shape[1], self.map1_img.shape[0]), borderValue=127)
-            
+            res = self.map1_info.resolution
+
+            # Shapes
+            h1, w1 = self.map1_img.shape
+            h2, w2 = self.map2_img.shape
+
+            # Corners of both maps
+            map2_corners = np.float32([[0, 0], [w2, 0], [w2, h2], [0, h2]]).reshape(-1, 1, 2)
+            map1_corners = np.float32([[0, 0], [w1, 0], [w1, h1], [0, h1]]).reshape(-1, 1, 2)
+
+            # Transform map2 corners
+            transformed_corners = cv2.transform(map2_corners, M)
+            all_corners = np.vstack((map1_corners, transformed_corners))
+
+            # Bounding box
+            [x_min, y_min] = np.floor(np.min(all_corners, axis=0)[0]).astype(int)
+            [x_max, y_max] = np.ceil(np.max(all_corners, axis=0)[0]).astype(int)
+            canvas_w = x_max - x_min
+            canvas_h = y_max - y_min
+
+            # Offset transform to fit everything on positive canvas
+            offset = np.array([[1, 0, -x_min],
+                            [0, 1, -y_min]], dtype=np.float32)
+            M_offset = offset @ np.vstack([M, [0, 0, 1]])
+            M_offset = M_offset[:2]
+
+            # Warp map2
+            warped = cv2.warpAffine(self.map2_img, M_offset, (canvas_w, canvas_h),
+                                    flags=cv2.INTER_NEAREST, borderValue=127)
             self.warped = warped.copy()
 
-            canvas = np.full_like(self.map1_img, 127)
-            canvas[(self.map1_img == 255) & (warped != 0) & (canvas != 0)] = 255
-            canvas[(warped == 255) & (self.map1_img != 0) & (canvas != 0)] = 255
-            canvas[(self.map1_img < 100) | (warped < 100)] = 0
-            self.robot1_pos = (-self.map1_info.origin.position.x, -self.map1_info.origin.position.y)
-            # Compute correct transformed origin
-            origin_px = np.array([[ -self.map2_info.origin.position.x / res,
-                                     -self.map2_info.origin.position.y / res ]], dtype=np.float32)
-            transformed_px = cv2.transform(origin_px[None, :, :], M)[0][0]
+            # Place map1 on canvas
+            canvas = np.full((canvas_h, canvas_w), 127, dtype=np.uint8)
+            x_offset = -x_min
+            y_offset = -y_min
+            canvas[y_offset:y_offset + h1, x_offset:x_offset + w1] = self.map1_img
+
+            # Merge logic
+            canvas[(canvas == 255) & (warped != 0) & (canvas != 0)] = 255
+            canvas[(warped == 255) & (canvas != 0)] = 255
+            canvas[(canvas < 100) | (warped < 100)] = 0
+
+            # Robot 1 position (in world coords)
+            self.robot1_pos = (
+                (-self.map1_info.origin.position.x) + x_offset * res,
+                (-self.map1_info.origin.position.y) + y_offset * res
+            )
+            # Robot 2 position: transform origin of map2
+            origin_px = np.array([[-self.map2_info.origin.position.x / res,
+                                -self.map2_info.origin.position.y / res]], dtype=np.float32)
+            transformed_px = cv2.transform(origin_px[None, :, :], M_offset)[0][0]
             self.robot2_pos = (transformed_px[0] * res, transformed_px[1] * res)
 
-            # Store rotation for TF (in timer_callback)
+            # Rotation angle for TF (robot2)
             theta = math.atan2(M[1, 0], M[0, 0])
             self.robot2_yaw = theta
 
