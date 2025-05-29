@@ -52,6 +52,34 @@ class MultiRobotExplorer(Node):
             'robot_2': set()
         }
 
+    def get_home_pose(self, map_msg, robot_name):
+        try:
+            # 0,0 in robot_x/map
+            map_frame = f"{robot_name}/map"
+            pose_in_map = PoseStamped()
+            pose_in_map.header.frame_id = map_frame
+            pose_in_map.header.stamp = self.get_clock().now().to_msg()
+            pose_in_map.pose.position.x = 0.0
+            pose_in_map.pose.position.y = 0.0
+            pose_in_map.pose.position.z = 0.0
+            pose_in_map.pose.orientation.w = 1.0
+
+            transform = self.tf_buffer.lookup_transform(
+                'world', map_frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.2)
+            )
+            pose_world = do_transform_pose(pose_in_map.pose, transform)
+
+            # Convert world pose to global map cell
+            resolution = map_msg.info.resolution
+            origin = map_msg.info.origin.position
+            x = int((pose_world.position.x - origin.x) / resolution)
+            y = int((pose_world.position.y - origin.y) / resolution)
+            return (y, x)
+
+        except Exception as e:
+            self.get_logger().warn(f"Failed to compute home cell for {robot_name}: {e}")
+            return None
+
     def get_closest_frontier(self, frontiers, map_msg, robot_frame):
         resolution = map_msg.info.resolution
         origin = map_msg.info.origin.position
@@ -144,13 +172,21 @@ class MultiRobotExplorer(Node):
         self.publish_frontier_markers(filtered_frontiers, msg)
         frontiers = filtered_frontiers
 
-        self.get_logger().info(f"Found {len(frontiers)} frontiers")
+        if len(frontiers) == 0:
+            self.get_logger().info("No more frontiers found")
 
-        for robot, frame in self.robot_frames.items():
-            closest = self.get_closest_frontier(frontiers, msg, frame)
-            if closest:
-                self.publish_selected_frontier(closest, msg, robot)
-                self.publish_goal_pose(closest, msg, robot)
+            for robot, frame in self.robot_frames.items():
+                home = self.get_home_pose(msg, robot)
+                self.publish_goal_pose(home, msg, robot)
+
+        else:
+            self.get_logger().info(f"Found {len(frontiers)} frontiers")
+
+            for robot, frame in self.robot_frames.items():
+                closest = self.get_closest_frontier(frontiers, msg, frame)
+                if closest:
+                    self.publish_selected_frontier(closest, msg, robot)
+                    self.publish_goal_pose(closest, msg, robot)
 
     def find_frontiers(self, map_msg):
         height = map_msg.info.height
