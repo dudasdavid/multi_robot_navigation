@@ -20,25 +20,19 @@ class MultiRobotMapMerger(Node):
 
         self.declare_parameter('tf_publish_frequency', 20.0)
         self.declare_parameter('map_publish_frequency', 1.0)
-        self.declare_parameter('sim_time', True)
         self.declare_parameter('visualize', True)
         self.declare_parameter('match_confidence_threshold', 0.6)
 
         self.publish_frequency = self.get_parameter('tf_publish_frequency').get_parameter_value().double_value
         self.map_publish_frequency = self.get_parameter('map_publish_frequency').get_parameter_value().double_value
-        self.use_sim_time = self.get_parameter('sim_time').get_parameter_value().bool_value
         self.visualize = self.get_parameter('visualize').get_parameter_value().bool_value
         self.confidence_threshold = self.get_parameter('match_confidence_threshold').get_parameter_value().double_value
+        self.use_sim_time = self.get_parameter('use_sim_time').get_parameter_value().bool_value
 
         self.add_on_set_parameters_callback(self.update_parameter_callback)
 
         self.robot1_pos = (0.0, 0.0)
         self.robot2_pos = (0.0, 0.0)
-
-        if self.use_sim_time:
-            self.set_parameters([rclpy.parameter.Parameter('use_sim_time', rclpy.Parameter.Type.BOOL, True)])
-            self.sim_time = None
-            self.create_subscription(Clock, '/clock', self.clock_callback, 10)
 
         self.broadcaster = tf2_ros.TransformBroadcaster(self)
         self.map_publisher = self.create_publisher(OccupancyGrid, '/map', 10)
@@ -71,9 +65,6 @@ class MultiRobotMapMerger(Node):
                 return result
         # Return success, so updates are seen via get_parameter()
         return result
-
-    def clock_callback(self, msg):
-        self.sim_time = msg.clock
 
     def occupancy_grid_to_image(self, msg):
         width = msg.info.width
@@ -128,12 +119,8 @@ class MultiRobotMapMerger(Node):
         self.map2_info = msg.info
 
     def timer_callback(self):
-        if self.use_sim_time:
-            if self.sim_time is None:
-                return
-            now = self.sim_time
-        else:
-            now = self.get_clock().now().to_msg()
+
+        now = self.get_clock().now().to_msg()
 
         # Robot 1 TF
         tf1 = TransformStamped()
