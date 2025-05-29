@@ -1,9 +1,9 @@
 <sdf version='1.10'>
   <world name='empty'>
     <physics name='8ms' type='ode'>
-      <max_step_size>0.008</max_step_size>
+      <max_step_size>0.01</max_step_size>
       <real_time_factor>1</real_time_factor>
-      <real_time_update_rate>125</real_time_update_rate>
+      <real_time_update_rate>100</real_time_update_rate>
     </physics>
     <plugin name='gz::sim::systems::Physics' filename='gz-sim-physics-system'/>
     <plugin name='gz::sim::systems::UserCommands' filename='gz-sim-user-commands-system'/>
