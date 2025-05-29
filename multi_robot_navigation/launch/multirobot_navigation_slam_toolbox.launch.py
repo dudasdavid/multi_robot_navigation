@@ -19,14 +19,14 @@ def generate_launch_description():
 
 
     robot_1 = {'name': 'robot_1',
-               'x': -3.0,
-               'y': -14.0,
+               'x': -4.5,
+               'y': 4.2,
                'yaw': 1.5708}
     robot_1['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_1['yaw'])
 
     robot_2 = {'name': 'robot_2',
-               'x': 5.5,
-               'y': 8.5,
+               'x': 4.0,
+               'y': -5.5,
                'yaw': 2.3562}
     robot_2['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_2['yaw'])
 
@@ -48,7 +48,7 @@ def generate_launch_description():
     )
 
     world_arg = DeclareLaunchArgument(
-        'world', default_value='maze.sdf',
+        'world', default_value='home.sdf',
         description='Name of the Gazebo world file to load'
     )
 
@@ -170,7 +170,9 @@ def generate_launch_description():
         output='screen',
         condition=UnlessCondition(LaunchConfiguration('static_map_tf')),
         parameters=[
-            {'match_confidence_threshold': 150.0},
+            {'match_confidence_threshold': 0.3,
+             'map_publish_frequency': 1.0,
+             'use_sim_time': LaunchConfiguration('use_sim_time')},
         ])
 
     start_async_slam_toolbox_node_1 = LifecycleNode(

@@ -220,7 +220,10 @@ def generate_launch_description():
         namespace=LaunchConfiguration('name'),
         parameters=[{'reference_frame_id': PythonExpression(["'", LaunchConfiguration('name'), "/odom'"]),
                      'robot_frame_id': PythonExpression(["'", LaunchConfiguration('name'), "/base_footprint'"]),
-                     'trajectory_topic': PythonExpression(["'/", LaunchConfiguration('name'), "/trajectory'"])}]
+                     'trajectory_topic': PythonExpression(["'/", LaunchConfiguration('name'), "/trajectory'"]),
+                     'update_rate': 3.0,
+                     'publish_rate': 2.0,
+                     'use_sim_time': LaunchConfiguration('use_sim_time'),}]
     )
 
     interactive_marker_twist_server_node = Node(
