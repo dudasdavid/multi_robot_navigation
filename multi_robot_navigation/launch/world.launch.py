@@ -20,7 +20,7 @@ def generate_launch_description():
     )
 
     world_arg = DeclareLaunchArgument(
-        'world', default_value='world.sdf',
+        'world', default_value='empty.sdf',
         description='Name of the Gazebo world file to load'
     )
 
@@ -47,8 +47,8 @@ def generate_launch_description():
             'worlds',
             LaunchConfiguration('world')
         ]),
-        #TextSubstitution(text=' -r -v -v1')],
-        TextSubstitution(text=' -r -v -v1 --render-engine ogre --render-engine-gui-api-backend opengl')],
+        TextSubstitution(text=' -r -v -v4')],
+        #TextSubstitution(text=' -r -v -v1 --render-engine ogre --render-engine-gui-api-backend opengl')],
         'on_exit_shutdown': 'true'}.items()
     )
 
