@@ -25,7 +25,7 @@ def generate_launch_description():
     robot_1['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_1['yaw'])
 
     robot_2 = {'name': 'robot_2',
-               'x': 4.0,
+               'x': 2.4,
                'y': -5.5,
                'yaw': 2.3562}
     robot_2['quaternion'] = quaternion_from_euler(0.0, 0.0, robot_2['yaw'])
@@ -171,7 +171,7 @@ def generate_launch_description():
         condition=UnlessCondition(LaunchConfiguration('static_map_tf')),
         parameters=[
             {'match_confidence_threshold': 0.3,
-             'map_publish_frequency': 1.0,
+             'map_publish_frequency': 0.5,
              'use_sim_time': LaunchConfiguration('use_sim_time')},
         ])
 
