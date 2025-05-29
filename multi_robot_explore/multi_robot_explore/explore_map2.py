@@ -5,7 +5,9 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseStamped, Point
 from builtin_interfaces.msg import Duration
 from tf2_geometry_msgs.tf2_geometry_msgs import do_transform_pose
-from tf2_ros import Buffer, TransformListener
+#from tf2_ros import Buffer, TransformListener
+from bitbots_tf_buffer import Buffer
+
 
 import numpy as np
 
@@ -15,6 +17,10 @@ class MultiRobotExplorer(Node):
 
         self.declare_parameter('min_unknown_cells', 10)
         self.min_unknown_cells = self.get_parameter('min_unknown_cells').get_parameter_value().integer_value
+        
+        # TODO: has to be fixed, it forces use_sim_time to True
+        self.set_parameters([rclpy.parameter.Parameter('use_sim_time', rclpy.Parameter.Type.BOOL, True)])
+        self.use_sim_time = self.get_parameter('use_sim_time').get_parameter_value().bool_value
 
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
         self.marker_pub = self.create_publisher(MarkerArray, '/global_frontiers', 10)
@@ -27,16 +33,10 @@ class MultiRobotExplorer(Node):
             'robot_2': self.create_publisher(PoseStamped, '/robot_2/goal_pose', 10)
         }
 
-        self.use_sim_time = True
-        self.latest_clock = None
-        if self.use_sim_time:
-            from rosgraph_msgs.msg import Clock
-            self.create_subscription(Clock, '/clock', self.clock_callback, 10)
-
         self.global_map = None
         
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_buffer = Buffer(self)
+        #self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.current_targets = {
             'robot_1': None,
@@ -126,6 +126,7 @@ class MultiRobotExplorer(Node):
         self.marker_pub.publish(marker_array)
 
     def map_callback(self, msg):
+
         self.check_and_blacklist_stuck_targets(msg)
         self.global_map = msg
         frontiers = self.find_frontiers(msg)
@@ -209,9 +210,6 @@ class MultiRobotExplorer(Node):
         marker_array.markers.append(marker)
         self.marker_pub.publish(marker_array)
 
-    def clock_callback(self, msg):
-        self.latest_clock = msg.clock
-
     def check_and_blacklist_stuck_targets(self, map_msg):
         now = self.get_clock().now().nanoseconds / 1e9
         resolution = map_msg.info.resolution
@@ -269,7 +267,7 @@ class MultiRobotExplorer(Node):
         pub = self.goal_pubs[robot_name]
         pose = PoseStamped()
         pose.header.frame_id = "world"
-        pose.header.stamp = self.latest_clock if self.latest_clock else self.get_clock().now().to_msg()
+        pose.header.stamp = self.get_clock().now().to_msg()
 
         resolution = map_msg.info.resolution
         origin = map_msg.info.origin.position
