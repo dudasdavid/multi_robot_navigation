@@ -117,11 +117,19 @@ class MultiRobotExplorer(Node):
         origin = map_msg.info.origin.position
         world_points = []
 
+        try:
+            transforms = {}
+            transforms['robot_1'] = self.tf_buffer.lookup_transform(
+                'world', 'robot_1/map', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
+            transforms['robot_2'] = self.tf_buffer.lookup_transform(
+                'world', 'robot_2/map', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
+        except Exception as e:
+            self.get_logger().warn(f"TF lookup failed for robot_x/map to world: {e}")
+
         for robot, blacklist in self.blacklists.items():
             frame = f"{robot}/map"
             try:
-                transform = self.tf_buffer.lookup_transform(
-                    'world', frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
+                transform = transforms[robot]
                 for y, x in blacklist:
                     local_x = origin.x + (x + 0.5) * resolution
                     local_y = origin.y + (y + 0.5) * resolution
@@ -264,6 +272,24 @@ class MultiRobotExplorer(Node):
         resolution = map_msg.info.resolution
         origin = map_msg.info.origin.position
 
+        try:
+            transforms = {}
+            transforms['robot_1'] = self.tf_buffer.lookup_transform(
+                'world', 'robot_1/base_link', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
+            transforms['robot_2'] = self.tf_buffer.lookup_transform(
+                'world', 'robot_2/base_link', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
+        except Exception as e:
+            self.get_logger().warn(f"TF lookup failed for robot_x/base_link to world: {e}")
+        
+        try:
+            map_transforms = {}
+            map_transforms['robot_1'] = self.tf_buffer.lookup_transform(
+                'robot_1/map', 'world', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
+            map_transforms['robot_2'] = self.tf_buffer.lookup_transform(
+                'robot_2/map', 'world', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1))
+        except Exception as e:
+            self.get_logger().warn(f"TF lookup failed for world to robot_x/map: {e}")
+
         for robot, target in self.current_targets.items():
             if not target:
                 continue
@@ -274,9 +300,8 @@ class MultiRobotExplorer(Node):
 
             try:
                 self.get_logger().info(f"{robot} is stuck for {now - start_time} seconds, checking reachability")
-                transform = self.tf_buffer.lookup_transform(
-                    'world', f'{robot}/base_link', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1)
-                )
+                transform = transforms[robot]
+
                 rx = transform.transform.translation.x
                 ry = transform.transform.translation.y
 
@@ -288,9 +313,8 @@ class MultiRobotExplorer(Node):
                     self.get_logger().warn(f"Blacklisting unreachable frontier for {robot} at ({y}, {x})")
 
                     try:
-                        transform_to_local = self.tf_buffer.lookup_transform(
-                            f'{robot}/map', 'world', rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.1)
-                        )
+                        transform_to_local = map_transforms[robot]
+                        
                         pose_world = PoseStamped()
                         pose_world.header.frame_id = 'world'
                         pose_world.pose.position.x = tx
