@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rcl_interfaces.msg import SetParametersResult
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseStamped, Point
@@ -15,12 +16,14 @@ class MultiRobotExplorer(Node):
     def __init__(self):
         super().__init__('multi_robot_explorer')
 
-        self.declare_parameter('min_unknown_cells', 10)
+        self.declare_parameter('min_unknown_cells', 12)
         self.min_unknown_cells = self.get_parameter('min_unknown_cells').get_parameter_value().integer_value
         
         # TODO: has to be fixed, it forces use_sim_time to True
         self.set_parameters([rclpy.parameter.Parameter('use_sim_time', rclpy.Parameter.Type.BOOL, True)])
         self.use_sim_time = self.get_parameter('use_sim_time').get_parameter_value().bool_value
+
+        self.add_on_set_parameters_callback(self.update_parameter_callback)
 
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
         self.marker_pub = self.create_publisher(MarkerArray, '/global_frontiers', 10)
@@ -28,6 +31,7 @@ class MultiRobotExplorer(Node):
             'robot_1': 'robot_1/base_link',
             'robot_2': 'robot_2/base_link'
         }
+        
         self.goal_pubs = {
             'robot_1': self.create_publisher(PoseStamped, '/robot_1/goal_pose', 10),
             'robot_2': self.create_publisher(PoseStamped, '/robot_2/goal_pose', 10)
@@ -51,6 +55,15 @@ class MultiRobotExplorer(Node):
             'robot_1': set(),
             'robot_2': set()
         }
+
+    def update_parameter_callback(self, params):
+        result = SetParametersResult(successful=True)
+        for param in params:
+            if param.name == 'min_unknown_cells' and param.type_ == rclpy.Parameter.Type.INTEGER:
+                self.min_unknown_cells = param.value
+                self.get_logger().info(f'Updating minimum unknown cells threshold to {self.min_unknown_cells}')
+                return result
+        return result
 
     def get_home_pose(self, map_msg, robot_name):
         try:
