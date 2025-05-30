@@ -299,7 +299,7 @@ class MultiRobotMapMerger(Node):
             ], dtype=np.uint8)
             canvas = cv2.erode(canvas, kernel, iterations=1)
 
-        self.merged_map_img = canvas
+        self.merged_map_img = canvas.copy()
 
         merged_msg = OccupancyGrid()
         merged_msg.header = Header()
@@ -320,24 +320,73 @@ class MultiRobotMapMerger(Node):
 
         self.map_publisher.publish(merged_msg)
 
+    # Add small images to the top row of the main image
+    def add_small_pictures(self, img, small_images, width=100):
+
+        if len(img.shape) == 2:
+            img = np.dstack((img, img, img))
+
+        x_base_offset = 10
+        y_base_offset = 10
+
+        x_offset = x_base_offset
+        y_offset = y_base_offset
+
+        for small in small_images:
+            if small is None:
+                continue
+
+            # Get original dimensions
+            original_height, original_width = small.shape[:2]
+            # Calculate the new height to maintain aspect ratio
+            scale_factor = width / original_width
+            new_height = int(original_height * scale_factor)
+            # Resize the image
+            small = cv2.resize(small, (width, new_height), interpolation=cv2.INTER_AREA)
+
+            if len(small.shape) == 2:
+                small = np.dstack((small, small, small))
+
+            img[y_offset: y_offset + new_height, x_offset: x_offset + width] = small
+
+            # Draw a red border around the pasted image
+            top_left = (x_offset, y_offset)
+            bottom_right = (x_offset + width - 1, y_offset + new_height - 1)
+            border_color = (0, 0, 255)  # Red in BGR format
+            border_thickness = 2  # You can adjust thickness
+
+            cv2.rectangle(img, top_left, bottom_right, border_color, thickness=border_thickness)
+
+            x_offset += width + x_base_offset
+
+        return img
+
     def visualization_loop(self):
+
+        #cv2.namedWindow("Map merger", cv2.WINDOW_NORMAL)
+
         while rclpy.ok():
-            if self.map1_img is not None:
-                cv2.imshow('Robot 1 Map', self.map1_img)
-            if self.map2_img is not None:
-                cv2.imshow('Robot 2 Map', self.map2_img)
+
             if self.merged_map_img is not None:
-                cv2.imshow('Merged Map', self.merged_map_img)
-            if self.proc1_img is not None:
-                cv2.imshow('Processed Robot 1 Map', self.proc1_img)
-            if self.proc2_img is not None:
-                cv2.imshow('Processed Robot 2 Map', self.proc2_img)
-            if self.warped is not None:
-                cv2.imshow('Warped Robot 2 Map', self.warped)
+                # Get original dimensions
+                original_height, original_width = self.merged_map_img.shape[:2]
+                # Desired width
+                new_width = 600
+                # Calculate the new height to maintain aspect ratio
+                scale_factor = new_width / original_width
+                new_height = int(original_height * scale_factor)
+                # Resize the image
+                resized_merged_map = cv2.resize(self.merged_map_img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+                                
+                result = self.add_small_pictures(resized_merged_map, [self.map1_img, self.proc1_img, self.map2_img, self.proc2_img, self.warped], width = 100)
+
+                cv2.imshow("Map merger", result)
+            
+
             if cv2.waitKey(30) & 0xFF == ord('q'):
                 rclpy.shutdown()
                 break
-            time.sleep(0.03)
+            time.sleep(1.0)
 
 
 def main(args=None):
