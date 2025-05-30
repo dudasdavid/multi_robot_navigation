@@ -1,17 +1,16 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 78
+    Help Height: 0
     Name: Displays
     Property Tree Widget:
       Expanded:
         - /Global Options1
         - /Status1
-        - /MarkerArray1
         - /Robot 11
         - /Robot 11/Map1/Position1
         - /Robot 21
       Splitter Ratio: 0.5
-    Tree Height: 1010
+    Tree Height: 731
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -281,7 +280,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 0
@@ -302,12 +301,12 @@ Visualization Manager:
             Value: /robot_1/scan
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Class: rviz_default_plugins/Camera
-          Enabled: false
+          Enabled: true
           Far Plane Distance: 100
           Image Rendering: background and overlay
-          Name: Camera
+          Name: Robot 1 camera
           Overlay Alpha: 0.5
           Topic:
             Depth: 5
@@ -315,7 +314,7 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /robot_1/camera/image/compressed
-          Value: false
+          Value: true
           Visibility:
             Grid: true
             Map: true
@@ -331,7 +330,15 @@ Visualization Manager:
               RobotModel: true
               Value: true
             Robot 2:
-              "": true
+              Imu: true
+              InteractiveMarkers: true
+              LaserScan: true
+              Map: true
+              Path: true
+              PointCloud2: true
+              Pose: true
+              Robot 2 camera: true
+              RobotModel: true
               Value: true
             TF: true
             Value: true
@@ -353,7 +360,7 @@ Visualization Manager:
             y_scale: 1
             z_scale: 1
           Class: rviz_imu_plugin/Imu
-          Enabled: true
+          Enabled: false
           Name: Imu
           Topic:
             Depth: 5
@@ -362,7 +369,7 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /robot_1/imu
-          Value: true
+          Value: false
           fixed_frame_orientation: true
         - Alpha: 0.699999988079071
           Binary representation: false
@@ -389,20 +396,20 @@ Visualization Manager:
           Value: false
         - Class: rviz_default_plugins/InteractiveMarkers
           Enable Transparency: true
-          Enabled: true
+          Enabled: false
           Interactive Markers Namespace: /robot_1/twist_server
           Name: InteractiveMarkers
           Show Axes: false
           Show Descriptions: false
           Show Visual Aids: false
-          Value: true
+          Value: false
         - Alpha: 0.699999988079071
           Binary representation: false
           Binary threshold: 100
           Class: rviz_default_plugins/Map
           Color Scheme: raw
           Draw Behind: true
-          Enabled: true
+          Enabled: false
           Name: Map
           Topic:
             Depth: 5
@@ -418,7 +425,7 @@ Visualization Manager:
             Reliability Policy: Reliable
             Value: /robot_1/global_costmap/costmap_updates
           Use Timestamp: false
-          Value: true
+          Value: false
         - Alpha: 0.699999988079071
           Binary representation: false
           Binary threshold: 100
@@ -630,7 +637,7 @@ Visualization Manager:
           Color: 25; 255; 0
           Color Transformer: FlatColor
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 1
@@ -651,12 +658,12 @@ Visualization Manager:
             Value: /robot_2/scan
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Class: rviz_default_plugins/Camera
-          Enabled: false
+          Enabled: true
           Far Plane Distance: 100
           Image Rendering: background and overlay
-          Name: Camera
+          Name: Robot 2 camera
           Overlay Alpha: 0.5
           Topic:
             Depth: 5
@@ -664,13 +671,12 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /robot_2/camera/image/compressed
-          Value: false
+          Value: true
           Visibility:
             Grid: true
             Map: true
             MarkerArray: true
             Robot 1:
-              Camera: true
               Imu: true
               InteractiveMarkers: true
               LaserScan: true
@@ -678,6 +684,7 @@ Visualization Manager:
               Path: true
               PointCloud2: true
               Pose: true
+              Robot 1 camera: true
               RobotModel: true
               Value: true
             Robot 2:
@@ -710,7 +717,7 @@ Visualization Manager:
             y_scale: 1
             z_scale: 1
           Class: rviz_imu_plugin/Imu
-          Enabled: true
+          Enabled: false
           Name: Imu
           Topic:
             Depth: 5
@@ -719,7 +726,7 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /robot_2/imu
-          Value: true
+          Value: false
           fixed_frame_orientation: true
         - Alpha: 0.699999988079071
           Binary representation: false
@@ -746,20 +753,20 @@ Visualization Manager:
           Value: false
         - Class: rviz_default_plugins/InteractiveMarkers
           Enable Transparency: true
-          Enabled: true
+          Enabled: false
           Interactive Markers Namespace: /robot_2/twist_server
           Name: InteractiveMarkers
           Show Axes: false
           Show Descriptions: false
           Show Visual Aids: false
-          Value: true
+          Value: false
         - Alpha: 0.699999988079071
           Binary representation: false
           Binary threshold: 100
           Class: rviz_default_plugins/Map
           Color Scheme: raw
           Draw Behind: true
-          Enabled: true
+          Enabled: false
           Name: Map
           Topic:
             Depth: 5
@@ -775,7 +782,7 @@ Visualization Manager:
             Reliability Policy: Reliable
             Value: /robot_2/global_costmap/costmap_updates
           Use Timestamp: false
-          Value: true
+          Value: false
         - Alpha: 0.699999988079071
           Binary representation: false
           Binary threshold: 100
@@ -956,14 +963,16 @@ Visualization Manager:
       Yaw: 3.1603951454162598
     Saved: ~
 Window Geometry:
-  Camera:
-    collapsed: false
   Displays:
     collapsed: false
-  Height: 1300
+  Height: 1403
   Hide Left Dock: false
-  Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001560000047bfc020000000afb0000001200530065006c0065006300740069006f006e000000003f000000880000005700fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df000001c6000001affb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c00610079007301000000380000047b000000bd00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d00650072006100000002b4000000b00000001600fffffffb0000000c00430061006d006500720061000000036a000001470000001600ffffff000000010000010f0000047bfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a0056006900650077007301000000380000047b0000009e00fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e1000001970000000300000a000000003efc0100000002fb0000000800540069006d0065010000000000000a000000024600fffffffb0000000800540069006d00650100000000000004500000000000000000000007910000047b00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Hide Right Dock: true
+  QMainWindow State: 000000ff00000000fd000000040000000000000153000004e2fc020000000afb0000001200530065006c0065006300740069006f006e000000003f000000880000005700fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df000001c6000001affb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003800000316000000bd00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000001c0052006f0062006f007400200031002000630061006d0065007200610100000353000000e20000001600fffffffb0000001c0052006f0062006f007400200032002000630061006d006500720061010000043a000000e00000001600ffffff000000010000010f000004e2fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730000000038000004e20000009e00fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e1000001970000000300000a000000003efc0100000002fb0000000800540069006d0065010000000000000a000000024600fffffffb0000000800540069006d00650100000000000004500000000000000000000008a8000004e200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Robot 1 camera:
+    collapsed: false
+  Robot 2 camera:
+    collapsed: false
   Selection:
     collapsed: false
   Time:
@@ -971,7 +980,7 @@ Window Geometry:
   Tool Properties:
     collapsed: false
   Views:
-    collapsed: false
+    collapsed: true
   Width: 2560
-  X: 0
-  Y: 32
+  X: 2560
+  Y: 0
