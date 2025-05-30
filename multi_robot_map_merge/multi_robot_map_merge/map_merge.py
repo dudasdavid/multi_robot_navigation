@@ -22,11 +22,13 @@ class MultiRobotMapMerger(Node):
         self.declare_parameter('map_publish_frequency', 1.0)
         self.declare_parameter('visualize', True)
         self.declare_parameter('match_confidence_threshold', 0.6)
+        self.declare_parameter('min_map_size', 60000)
 
         self.publish_frequency = self.get_parameter('tf_publish_frequency').get_parameter_value().double_value
         self.map_publish_frequency = self.get_parameter('map_publish_frequency').get_parameter_value().double_value
         self.visualize = self.get_parameter('visualize').get_parameter_value().bool_value
         self.confidence_threshold = self.get_parameter('match_confidence_threshold').get_parameter_value().double_value
+        self.min_map_size = self.get_parameter('min_map_size').get_parameter_value().integer_value
         self.use_sim_time = self.get_parameter('use_sim_time').get_parameter_value().bool_value
 
         self.add_on_set_parameters_callback(self.update_parameter_callback)
@@ -62,6 +64,10 @@ class MultiRobotMapMerger(Node):
             if param.name == 'match_confidence_threshold' and param.type_ == rclpy.Parameter.Type.DOUBLE:
                 self.confidence_threshold = param.value
                 self.get_logger().info(f'Updating minimum confidence threshold to {self.confidence_threshold}')
+                return result
+            elif param.name == 'min_map_size' and param.type_ == rclpy.Parameter.Type.INTEGER:
+                self.min_map_size = param.value
+                self.get_logger().info(f'Updating minimum map size to {self.min_map_size}')
                 return result
         # Return success, so updates are seen via get_parameter()
         return result
@@ -167,8 +173,6 @@ class MultiRobotMapMerger(Node):
             src_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
             dst_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
             
-            print(src_pts.shape, dst_pts.shape)
-
             if src_pts.shape[0] < 1 or dst_pts.shape[0] < 1:
                 confidence = 0.0
                 self.get_logger().info("Not enough points for transformation.")
@@ -182,7 +186,12 @@ class MultiRobotMapMerger(Node):
                 
                 else:
                     # Warp img2 corners into img1 frame to get estimated overlap polygon
+                    h1, w1 = img1.shape[:2]
                     h2, w2 = img2.shape[:2]
+
+                    map1_size = h1*w1
+                    map2_size = h2*w2
+
                     corners2 = np.array([[0, 0], [w2, 0], [w2, h2], [0, h2]], dtype=np.float32).reshape(-1, 1, 2)
                     warped_corners = cv2.transform(corners2, M)  # 4x1x2
                     polygon = Polygon(warped_corners.reshape(-1, 2))
@@ -205,7 +214,11 @@ class MultiRobotMapMerger(Node):
                     else:
                         confidence = 0.0
 
-                    self.get_logger().info(f"Confidence: {confidence:.2f}, Inliers: {overlap_inlier_count}, Overlap keypoints: {overlap_kp_count}")
+                    self.get_logger().info(f"Confidence: {confidence:.2f}, Inliers: {overlap_inlier_count}, Overlap keypoints: {overlap_kp_count}, Map 1 size: {img1.shape}, Map 2 size: {img2.shape}")
+                    if map1_size < self.min_map_size or map2_size < self.min_map_size:
+                        confidence = 0.0
+                        self.get_logger().info("One of the maps is too small, confidence set to 0.0")
+                        self.get_logger().info(f"Map 1 size: {map1_size}, Map 2 size: {map2_size}, Min size: {self.min_map_size}")
             
         else:
             confidence = 0.0
