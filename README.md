@@ -26,6 +26,12 @@ number_of_robots = 3
 
 # Multi-robot map merge
 
+### TL;DR: run it with a single launch file
+
+```bash
+ros2 launch multi_robot_navigation multirobot_mapping_slam_toolbox.launch.py
+```
+
 ### `multirobot_mapping_slam_toolbox.launch.py`
 A single launch file that starts the simulation and RViz (`world.launch.py`) and spawns 2 hardcoded robot instances through `spawn_robot.launch.py`. It also starts 2 instances of SLAM toolbox and the `map_merge` node from `multi_robot_map_merge` packge of this repository.
 
@@ -34,8 +40,14 @@ Same as the other launch file but starts cartogrpaher instances instead of SLAM 
 
 
 # Multi-robot exploration
+It's a combination of running multiple instances of navigation stack and an additional exploration node. 
 
-It's a combination of running multiple instances of navigation stack and an additional exploration node. First start the simulation with the navigation stack:
+### TL;DR: run it with a single launch file and the exploration node
+
+```bash
+ros2 launch multi_robot_navigation multirobot_navigation_slam_toolbox.launch.py
+ros2 run multi_robot_explore explore_map2
+```
 
 ### `multirobot_navigation_slam_toolbox.launch.py`
 A single launch file that starts the simulation and RViz (`world.launch.py`) and spawns 2 hardcoded robot instances through `spawn_robot.launch.py`. It also starts 2 instances of SLAM toolbox, 2 instances of navigation stack (Nav2) and the `map_merge` node from `multi_robot_map_merge` packge of this repository.
