@@ -6,8 +6,8 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseStamped, Point
 from builtin_interfaces.msg import Duration
 from tf2_geometry_msgs.tf2_geometry_msgs import do_transform_pose
-#from tf2_ros import Buffer, TransformListener
-from bitbots_tf_buffer import Buffer
+from tf2_ros import Buffer, TransformListener
+#from bitbots_tf_buffer import Buffer
 
 
 import numpy as np
@@ -39,8 +39,8 @@ class MultiRobotExplorer(Node):
 
         self.global_map = None
         
-        self.tf_buffer = Buffer(self)
-        #self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.current_targets = {
             'robot_1': None,
