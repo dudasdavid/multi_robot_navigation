@@ -55,7 +55,7 @@ def generate_launch_description():
     )
 
     static_tf_arg = DeclareLaunchArgument(
-        'static_map_tf', default_value='true',
+        'static_map_tf', default_value='false',
         description='Apply static transform between world and odom frame'
     )
 
